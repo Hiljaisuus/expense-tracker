@@ -5,11 +5,11 @@ import sys
 from PySide6.QtWidgets import QApplication
 
 from Model import Model
-from View import View, UI
+from View import View, UI, EditRecordDialog
 
 class Controller:
   def __init__(self) -> None:
-    self.model = pickle.load(open("model.pkl", "rb"))
+    self.model: Model = pickle.load(open("model.pkl", "rb"))
     
     atexit.register(self.save_model)
     
@@ -18,7 +18,9 @@ class Controller:
     self.view = View()
 
     self.view.set_view(UI.STATISTICS)
-
+    self.view.categories_view.set_data(self.model.categories)
+    self.view.records_view.set_data(self.model)
+    
     self.view.show()
 
     sys.exit(application.exec())
