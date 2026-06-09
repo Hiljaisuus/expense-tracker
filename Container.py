@@ -27,23 +27,19 @@ class Container(Generic[T]):
     return new_id
 
   def remove(self, element_id: int) -> None:
-    # invalidate element id
-    self.id_to_index[element_id] = -1
-
     # overwrite removed element with last elemment 
     element_index = self.id_to_index[element_id]
     last_index = len(self.data) - 1
-
-    self.data[element_index] = self.data[last_index]
-    self.index_to_id[element_index] = self.index_to_id[last_index]
-    
-    # pop last element
-    self.data.pop()
-    self.index_to_id.pop()
-
-    # ensure the id of the last element points to the correct index
     last_id = self.index_to_id[last_index]
+
     self.id_to_index[last_id] = element_index
+    self.index_to_id[element_index] = last_id
+    self.data[element_index] = self.data[last_index]
+    
+    # remove last element
+    self.id_to_index[element_id] = -1
+    self.index_to_id.pop()    
+    self.data.pop()
   
   def get(self, id) -> T:
     return self.data[self.id_to_index[id]]
