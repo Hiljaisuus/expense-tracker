@@ -33,6 +33,9 @@ class ColorIndicator(QtWidgets.QWidget):
     painter.drawRoundedRect(self.rect(), 0.25 * self.side, 0.25 * self.side)
 
 class CategoryWidget(qfw.CardWidget):
+  edit = QtCore.Signal(int)
+  remove = QtCore.Signal(int)
+
   def __init__(self, category_id: int, categories: Container[Category]) -> None:
     super().__init__()
     
@@ -40,8 +43,11 @@ class CategoryWidget(qfw.CardWidget):
 
     category = categories.get(self.category_id)
 
-    self.edit = qfw.TransparentToolButton(qfw.FluentIcon.EDIT)
-    self.remove = qfw.TransparentToolButton(qfw.FluentIcon.DELETE)
+    self.edit_button = qfw.TransparentToolButton(qfw.FluentIcon.EDIT)
+    self.remove_button = qfw.TransparentToolButton(qfw.FluentIcon.DELETE)
+
+    self.edit_button.pressed.connect(lambda: self.edit.emit(self.category_id))
+    self.remove_button.pressed.connect(lambda: self.remove.emit(self.category_id))
 
     self.h_layout = QtWidgets.QHBoxLayout(self)
     self.h_layout.setSpacing(10)
@@ -49,21 +55,26 @@ class CategoryWidget(qfw.CardWidget):
     self.h_layout.addWidget(ColorIndicator(category.color))
     self.h_layout.addWidget(qfw.TitleLabel(category.name))
     self.h_layout.addStretch()
-    self.h_layout.addWidget(self.edit)
-    self.h_layout.addWidget(self.remove)
+    self.h_layout.addWidget(self.edit_button)
+    self.h_layout.addWidget(self.remove_button)
 
 class CategoriesView(QtWidgets.QWidget):
+  add = QtCore.Signal()
+  edit = QtCore.Signal(int)
+  remove = QtCore.Signal(int)
+
   def __init__(self) -> None:
     super().__init__()
 
-    self.add = qfw.TransparentToolButton(qfw.FluentIcon.ADD)
-    
+    self.add_button = qfw.TransparentToolButton(qfw.FluentIcon.ADD)
+    self.add_button.pressed.connect(self.add.emit)
+
     self.scroll_area = qfw.SingleDirectionScrollArea(orient=QtCore.Qt.Orientation.Vertical)
     self.scroll_area.setWidgetResizable(True)
     
     self.v_layout = QtWidgets.QVBoxLayout(self)
     self.v_layout.addWidget(qfw.DisplayLabel("Categories"))
-    self.v_layout.addWidget(self.add)
+    self.v_layout.addWidget(self.add_button)
     self.v_layout.addWidget(self.scroll_area)
   
   def set_data(self, categories: Container[Category]) -> None:
@@ -75,7 +86,10 @@ class CategoriesView(QtWidgets.QWidget):
     
     v_layout = QtWidgets.QVBoxLayout(widget)
     for index in indices:
-      v_layout.addWidget(CategoryWidget(categories.index_to_id[index], categories))
+      category = CategoryWidget(categories.index_to_id[index], categories)
+      category.edit.connect(self.edit.emit)
+      category.remove.connect(self.remove.emit)
+      v_layout.addWidget(category)
 
     v_layout.addStretch()
     
@@ -140,6 +154,9 @@ class EditCategoryDialog(qfw.MessageBoxBase):
     self.viewLayout.addLayout(self.v_layout)
 
 class RecordWidget(qfw.CardWidget):
+  edit = QtCore.Signal(int)
+  remove = QtCore.Signal(int)
+
   def __init__(self, record_id: int, model: Model) -> None:
     super().__init__()
 
@@ -157,12 +174,15 @@ class RecordWidget(qfw.CardWidget):
 
     self.category_name.setFixedWidth(200)
     self.date.setFixedWidth(200)
-    self.amount.setFixedWidth(200)
+    self.amount.setFixedWidth(300)
 
     self.description.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Preferred)
 
-    self.edit = qfw.TransparentToolButton(qfw.FluentIcon.EDIT)
-    self.remove = qfw.TransparentToolButton(qfw.FluentIcon.DELETE)
+    self.edit_button = qfw.TransparentToolButton(qfw.FluentIcon.EDIT)
+    self.remove_button = qfw.TransparentToolButton(qfw.FluentIcon.DELETE)
+
+    self.edit_button.pressed.connect(lambda: self.edit.emit(self.record_id))
+    self.remove_button.pressed.connect(lambda: self.remove.emit(self.record_id))
 
     self.h_layout = QtWidgets.QHBoxLayout(self)
     self.h_layout.setSpacing(10)
@@ -172,21 +192,26 @@ class RecordWidget(qfw.CardWidget):
     self.h_layout.addWidget(self.date)
     self.h_layout.addWidget(self.amount)
     self.h_layout.addWidget(self.description)
-    self.h_layout.addWidget(self.edit)
-    self.h_layout.addWidget(self.remove)
+    self.h_layout.addWidget(self.edit_button)
+    self.h_layout.addWidget(self.remove_button)
 
 class RecordsView(QtWidgets.QWidget):
+  add = QtCore.Signal()
+  edit = QtCore.Signal(int)
+  remove = QtCore.Signal(int)
+
   def __init__(self) -> None:
     super().__init__()
 
-    self.add = qfw.TransparentToolButton(qfw.FluentIcon.ADD)
+    self.add_button = qfw.TransparentToolButton(qfw.FluentIcon.ADD)
+    self.add_button.pressed.connect(self.add.emit)
 
     self.scroll_area = qfw.SingleDirectionScrollArea(orient=QtCore.Qt.Orientation.Vertical)
     self.scroll_area.setWidgetResizable(True)
 
     self.v_layout = QtWidgets.QVBoxLayout(self)
     self.v_layout.addWidget(qfw.DisplayLabel("Records"))
-    self.v_layout.addWidget(self.add)
+    self.v_layout.addWidget(self.add_button)
     self.v_layout.addWidget(self.scroll_area)
   
   def set_data(self, model: Model) -> None:
@@ -198,7 +223,10 @@ class RecordsView(QtWidgets.QWidget):
 
     v_layout = QtWidgets.QVBoxLayout(widget)
     for index in indices:
-      v_layout.addWidget(RecordWidget(model.records.index_to_id[index], model))
+      record = RecordWidget(model.records.index_to_id[index], model)
+      record.edit.connect(self.edit.emit)
+      record.remove.connect(self.remove.emit)
+      v_layout.addWidget(record)
 
     v_layout.addStretch()
 
@@ -223,7 +251,8 @@ class CreateRecordDialog(qfw.MessageBoxBase):
     for index in self.indices:
       self.category_field.addItem(self.categories.data[index].name)
 
-    self.amount_field = qfw.CompactDoubleSpinBox()
+    self.amount_field = qfw.DoubleSpinBox()
+    self.amount_field.setMaximum(1000000000)
 
     self.date_field = qfw.FastCalendarPicker()
     self.date_field.setText("")
@@ -246,6 +275,9 @@ class CreateRecordDialog(qfw.MessageBoxBase):
 
     self.viewLayout.addLayout(self.v_layout)
   
+  def get_category_id(self) -> int:
+    return self.categories.index_to_id[self.indices[self.category_field.currentIndex()]]
+
   def validate(self) -> bool:
     if self.amount_field.value() == 0:
       qfw.InfoBar.error(
@@ -301,7 +333,8 @@ class EditRecordDialog(qfw.MessageBoxBase):
       self.indices.index(self.categories.id_to_index[record.category])
     )
 
-    self.amount_field = qfw.CompactDoubleSpinBox()
+    self.amount_field = qfw.DoubleSpinBox()
+    self.amount_field.setMaximum(1000000000)
     self.amount_field.setValue(record.amount)
 
     self.date_field = qfw.FastCalendarPicker()
@@ -326,6 +359,9 @@ class EditRecordDialog(qfw.MessageBoxBase):
 
     self.viewLayout.addLayout(self.v_layout)
 
+  def get_category_id(self) -> int:
+    return self.categories.index_to_id[self.indices[self.category_field.currentIndex()]]
+  
   def validate(self) -> bool:
     if self.amount_field.value() == 0:
       qfw.InfoBar.error(
@@ -361,6 +397,9 @@ class StatisticsView(QtWidgets.QWidget):
 
     self.v_layout = QtWidgets.QVBoxLayout(self)
     self.v_layout.addWidget(qfw.DisplayLabel("Statistics"))
+  
+  def set_data(self, model: Model) -> None:
+    pass
 
 class View(qfw.FluentWindow):
   def __init__(self) -> None:
