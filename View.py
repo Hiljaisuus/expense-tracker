@@ -153,6 +153,48 @@ class EditCategoryDialog(qfw.MessageBoxBase):
 
     self.viewLayout.addLayout(self.v_layout)
 
+class RemoveCategoryDialog(qfw.MessageBoxBase):
+  def __init__(self, parent: qfw.FluentWindow, category_id: int, categories: Container[Category]) -> None:
+    super().__init__(parent)
+
+    self.categories = categories
+
+    self.widget.setMinimumWidth(490)
+
+    self.title_label = qfw.TitleLabel("Remove Category")
+    self.category_label = qfw.BodyLabel("Replacement Category")
+    self.category_field = qfw.ComboBox()
+
+    self.category_field.setSizePolicy(
+      QtWidgets.QSizePolicy.Policy.MinimumExpanding,
+      QtWidgets.QSizePolicy.Policy.Preferred
+    )
+
+    self.indices: list[int] = []
+
+    for index in range(self.categories.size()):
+      id = self.categories.index_to_id[index]
+      if id != category_id:
+        self.indices.append(index)
+
+    self.indices.sort(key=lambda index: self.categories.data[index].name)
+
+    for index in self.indices:
+      self.category_field.addItem(self.categories.data[index].name)
+
+    self.h_layout = QtWidgets.QHBoxLayout()
+    self.h_layout.addWidget(self.category_label)
+    self.h_layout.addWidget(self.category_field)
+
+    self.v_layout = QtWidgets.QVBoxLayout()
+    self.v_layout.addWidget(self.title_label)
+    self.v_layout.addLayout(self.h_layout)
+
+    self.viewLayout.addLayout(self.v_layout)
+  
+  def get_category_id(self) -> int:
+    return self.categories.index_to_id[self.indices[self.category_field.currentIndex()]]
+
 class RecordWidget(qfw.CardWidget):
   edit = QtCore.Signal(int)
   remove = QtCore.Signal(int)
@@ -390,6 +432,20 @@ class EditRecordDialog(qfw.MessageBoxBase):
       return False
 
     return True
+
+class RemoveRecordDialog(qfw.MessageBoxBase):
+  def __init__(self, parent: qfw.FluentWindow) -> None:
+    super().__init__(parent)
+
+    self.widget.setMinimumWidth(490)
+
+    self.v_layout = QtWidgets.QVBoxLayout()
+    self.v_layout.addWidget(qfw.TitleLabel("Remove Record"))
+    self.v_layout.addWidget(qfw.BodyLabel(
+      "Are you sure you want to remove the selected record?"
+    ))
+
+    self.viewLayout.addLayout((self.v_layout))
 
 class StatisticsView(QtWidgets.QWidget):
   def __init__(self) -> None:
