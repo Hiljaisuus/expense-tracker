@@ -43,12 +43,12 @@ class Container(Generic[T]):
   
   def get(self, id) -> T:
     return self.data[self.id_to_index[id]]
-  
-  def get_elements(self) -> list[T]:
-    return self.data.copy()
 
   def set(self, id, element: T) -> None:
     self.data[self.id_to_index[id]] = element
+  
+  def size(self) -> int:
+    return len(self.data)
   
   def filter(self, condition: Callable[[T], bool]) -> list[T]:
     result: list[T] = []
