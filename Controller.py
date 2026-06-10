@@ -68,6 +68,20 @@ class Controller:
     self.view.categories_view.set_data(self.model.categories)
   
   def categories_view_edit(self, category_id: int) -> None:
+    num_categories = self.model.categories.size()
+
+    if num_categories == 0:
+      qfw.InfoBar.error(
+          title="Error",
+          content="No categories exist.",
+          orient=QtCore.Qt.Orientation.Vertical,
+          isClosable=True,
+          position=qfw.InfoBarPosition.BOTTOM_RIGHT,
+          duration=4000,
+          parent=self.view
+        )
+      return
+
     dialog = View.EditCategoryDialog(self.view, category_id, self.model.categories)
 
     if not dialog.exec():
@@ -84,6 +98,32 @@ class Controller:
     self.view.categories_view.set_data(self.model.categories)
   
   def categories_view_remove(self, category_id: int) -> None:
+    num_categories = self.model.categories.size()
+
+    match num_categories:
+      case 0:
+        qfw.InfoBar.error(
+          title="Error",
+          content="No categories exist.",
+          orient=QtCore.Qt.Orientation.Vertical,
+          isClosable=True,
+          position=qfw.InfoBarPosition.BOTTOM_RIGHT,
+          duration=4000,
+          parent=self.view
+        )
+        return
+      case 1:
+        qfw.InfoBar.error(
+          title="Error",
+          content="Cannot remove only remaining category.",
+          orient=QtCore.Qt.Orientation.Vertical,
+          isClosable=True,
+          position=qfw.InfoBarPosition.BOTTOM_RIGHT,
+          duration=4000,
+          parent=self.view
+        )
+        return
+
     dialog = qfw.Dialog("Remove Category", "Are you sure you want to remove the selected category?", self.view)
 
     if not dialog.exec():
@@ -94,8 +134,20 @@ class Controller:
     self.view.categories_view.set_data(self.model.categories)
   
   def records_view_add(self) -> None:
-    print("add record")
+    num_categories = self.model.categories.size()
 
+    if num_categories == 0:
+      qfw.InfoBar.error(
+          title="Error",
+          content="No categories exist.",
+          orient=QtCore.Qt.Orientation.Vertical,
+          isClosable=True,
+          position=qfw.InfoBarPosition.BOTTOM_RIGHT,
+          duration=4000,
+          parent=self.view
+        )
+      return
+    
     dialog = View.CreateRecordDialog(self.view, self.model.categories)
 
     if not dialog.exec():
@@ -113,6 +165,20 @@ class Controller:
     self.view.records_view.set_data(self.model)
   
   def records_view_edit(self, record_id: int) -> None:
+    num_records = self.model.categories.size()
+
+    if num_records == 0:
+      qfw.InfoBar.error(
+          title="Error",
+          content="No records exist.",
+          orient=QtCore.Qt.Orientation.Vertical,
+          isClosable=True,
+          position=qfw.InfoBarPosition.BOTTOM_RIGHT,
+          duration=4000,
+          parent=self.view
+        )
+      return
+    
     dialog = View.EditRecordDialog(self.view, record_id, self.model)
 
     if not dialog.exec():
@@ -131,6 +197,20 @@ class Controller:
     self.view.records_view.set_data(self.model)
   
   def records_view_remove(self, record_id: int) -> None:
+    num_records = self.model.categories.size()
+
+    if num_records == 0:
+      qfw.InfoBar.error(
+          title="Error",
+          content="No records exist.",
+          orient=QtCore.Qt.Orientation.Vertical,
+          isClosable=True,
+          position=qfw.InfoBarPosition.BOTTOM_RIGHT,
+          duration=4000,
+          parent=self.view
+        )
+      return
+    
     dialog = qfw.Dialog("Remove Record", "Are you sure you want to remove the selected record?", self.view)
 
     if not dialog.exec():
