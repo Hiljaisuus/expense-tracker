@@ -124,10 +124,16 @@ class Controller:
         )
         return
 
-    dialog = qfw.Dialog("Remove Category", "Are you sure you want to remove the selected category?", self.view)
+    dialog = View.RemoveCategoryDialog(self.view, category_id, self.model.categories)
 
     if not dialog.exec():
       return
+    
+    replacement_category = dialog.get_category_id()
+    
+    for record in self.model.records.data:
+      if record.category == category_id:
+        record.category = replacement_category
     
     self.model.categories.remove(category_id)
 
@@ -211,7 +217,7 @@ class Controller:
         )
       return
     
-    dialog = qfw.Dialog("Remove Record", "Are you sure you want to remove the selected record?", self.view)
+    dialog = View.RemoveRecordDialog(self.view)
 
     if not dialog.exec():
       return
