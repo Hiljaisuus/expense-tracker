@@ -19,4 +19,5 @@ class Record:
 @dataclass
 class Model:
   categories: Container[Category]
-  records: Container[Record]
+  income: Container[Record]
+  expenses: Container[Record]

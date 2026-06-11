@@ -10,8 +10,9 @@ import qfluentwidgets as qfw
 
 class UI(Enum):
   CATEGORIES      = 0
-  RECORDS         = 1
-  STATISTICS      = 2
+  INCOME          = 1
+  EXPENSES        = 2
+  STATISTICS      = 3
 
 class ColorIndicator(QtWidgets.QWidget):
   def __init__(self, color: QtGui.QColor, side: int = 20) -> None:
@@ -199,14 +200,14 @@ class RecordWidget(qfw.CardWidget):
   edit = QtCore.Signal(int)
   remove = QtCore.Signal(int)
 
-  def __init__(self, record_id: int, model: Model) -> None:
+  def __init__(self, record_id: int, categories: Container[Category], records: Container[Record]) -> None:
     super().__init__()
 
     self.record_id = record_id
-    self.category_id = model.records.get(self.record_id).category
+    self.category_id = records.get(self.record_id).category
 
-    record = model.records.get(self.record_id)
-    category = model.categories.get(self.category_id)
+    record = records.get(self.record_id)
+    category = categories.get(self.category_id)
 
     self.color_indicator = ColorIndicator(category.color)
     self.category_name = qfw.BodyLabel(category.name)
@@ -242,7 +243,7 @@ class RecordsView(QtWidgets.QWidget):
   edit = QtCore.Signal(int)
   remove = QtCore.Signal(int)
 
-  def __init__(self) -> None:
+  def __init__(self, title: str) -> None:
     super().__init__()
 
     self.add_button = qfw.TransparentToolButton(qfw.FluentIcon.ADD)
@@ -252,23 +253,23 @@ class RecordsView(QtWidgets.QWidget):
     self.scroll_area.setWidgetResizable(True)
 
     self.v_layout = QtWidgets.QVBoxLayout(self)
-    self.v_layout.addWidget(qfw.DisplayLabel("Records"))
+    self.v_layout.addWidget(qfw.DisplayLabel(title))
     self.v_layout.addWidget(self.add_button)
     self.v_layout.addWidget(self.scroll_area)
   
-  def set_data(self, model: Model) -> None:
-    indices = list(range(len(model.records.data)))
+  def set_data(self, categories: Container[Category], records: Container[Record]) -> None:
+    indices = list(range(records.size()))
     
-    indices.sort(key=lambda index: model.records.data[index].date, reverse=True)
+    indices.sort(key=lambda index: records.data[index].date, reverse=True)
     
     widget = QtWidgets.QWidget()
 
     v_layout = QtWidgets.QVBoxLayout(widget)
     for index in indices:
-      record = RecordWidget(model.records.index_to_id[index], model)
-      record.edit.connect(self.edit.emit)
-      record.remove.connect(self.remove.emit)
-      v_layout.addWidget(record)
+      record_widget = RecordWidget(records.index_to_id[index], categories, records)
+      record_widget.edit.connect(self.edit.emit)
+      record_widget.remove.connect(self.remove.emit)
+      v_layout.addWidget(record_widget)
 
     v_layout.addStretch()
 
@@ -350,15 +351,15 @@ class CreateRecordDialog(qfw.MessageBoxBase):
     return True
 
 class EditRecordDialog(qfw.MessageBoxBase):
-  def __init__(self, parent: qfw.FluentWindow, record_id: int, model: Model) -> None:
+  def __init__(self, parent: qfw.FluentWindow, record_id: int, categories: Container[Category], records: Container[Record]) -> None:
     super().__init__(parent)
 
     self.widget.setMinimumWidth(490)
 
     self.record_id = record_id
-    self.categories = model.categories # needed to convert category index into id
+    self.categories = categories # needed to convert category index into id
 
-    record = model.records.get(record_id)
+    record = records.get(record_id)
 
     self.title = qfw.TitleLabel("Edit Record")
 
@@ -453,6 +454,7 @@ class StatisticsView(QtWidgets.QWidget):
 
     self.v_layout = QtWidgets.QVBoxLayout(self)
     self.v_layout.addWidget(qfw.DisplayLabel("Statistics"))
+    self.v_layout.addStretch()
   
   def set_data(self, model: Model) -> None:
     pass
@@ -467,16 +469,19 @@ class View(qfw.FluentWindow):
 
     # Create views
     self.categories_view = CategoriesView()
-    self.records_view = RecordsView()
+    self.income_view = RecordsView("Income")
+    self.expenses_view = RecordsView("Expenses")
     self.statistics_view = StatisticsView()
 
     # Add views to stacked widget
     self.categories_view.setObjectName("categories-view")
-    self.records_view.setObjectName("records-view")
+    self.income_view.setObjectName("income-view")
+    self.expenses_view.setObjectName("expenses-view")
     self.statistics_view.setObjectName("statistics-view")
 
     self.addSubInterface(self.categories_view, qfw.FluentIcon.TILES,"Categories")    
-    self.addSubInterface(self.records_view, qfw.FluentIcon.DICTIONARY, "Records")
+    self.addSubInterface(self.income_view, qfw.FluentIcon.DICTIONARY, "Income")
+    self.addSubInterface(self.expenses_view, qfw.FluentIcon.DICTIONARY, "Expenses")
     self.addSubInterface(self.statistics_view, qfw.FluentIcon.MARKET, "Statistics")
 
   def set_view(self, ui) -> None:

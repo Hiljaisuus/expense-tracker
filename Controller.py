@@ -39,16 +39,22 @@ class Controller:
     self.view.categories_view.edit.connect(self.categories_view_edit)
     self.view.categories_view.remove.connect(self.categories_view_remove)
 
-    self.view.records_view.add.connect(self.records_view_add)
-    self.view.records_view.edit.connect(self.records_view_edit)
-    self.view.records_view.remove.connect(self.records_view_remove)
+    self.view.income_view.add.connect(self.income_view_add)
+    self.view.income_view.edit.connect(self.income_view_edit)
+    self.view.income_view.remove.connect(self.income_view_remove)
+
+    self.view.expenses_view.add.connect(self.expenses_view_add)
+    self.view.expenses_view.edit.connect(self.expenses_view_edit)
+    self.view.expenses_view.remove.connect(self.expenses_view_remove)
   
   def view_changed(self, index: int) -> None:
     match index:
       case View.UI.CATEGORIES.value:
         self.view.categories_view.set_data(self.model.categories)
-      case View.UI.RECORDS.value:
-        self.view.records_view.set_data(self.model)
+      case View.UI.INCOME.value:
+        self.view.income_view.set_data(self.model.categories, self.model.income)
+      case View.UI.EXPENSES.value:
+        self.view.expenses_view.set_data(self.model.categories, self.model.expenses)
       case View.UI.STATISTICS.value:
         self.view.statistics_view.set_data(self.model)
 
@@ -131,7 +137,7 @@ class Controller:
     
     replacement_category = dialog.get_category_id()
     
-    for record in self.model.records.data:
+    for record in self.model.expenses.data:
       if record.category == category_id:
         record.category = replacement_category
     
@@ -139,7 +145,7 @@ class Controller:
 
     self.view.categories_view.set_data(self.model.categories)
   
-  def records_view_add(self) -> None:
+  def income_view_add(self) -> None:
     num_categories = self.model.categories.size()
 
     if num_categories == 0:
@@ -159,7 +165,7 @@ class Controller:
     if not dialog.exec():
       return
     
-    self.model.records.add(
+    self.model.income.add(
       Model.Record(
         dialog.get_category_id(),
         dialog.amount_field.value(),
@@ -168,9 +174,9 @@ class Controller:
       )
     )
 
-    self.view.records_view.set_data(self.model)
+    self.view.income_view.set_data(self.model.categories, self.model.income)
   
-  def records_view_edit(self, record_id: int) -> None:
+  def income_view_edit(self, record_id: int) -> None:
     num_records = self.model.categories.size()
 
     if num_records == 0:
@@ -185,12 +191,12 @@ class Controller:
         )
       return
     
-    dialog = View.EditRecordDialog(self.view, record_id, self.model)
+    dialog = View.EditRecordDialog(self.view, record_id, self.model.categories, self.model.income)
 
     if not dialog.exec():
       return
     
-    self.model.records.set(
+    self.model.income.set(
       record_id,
       Model.Record(
         dialog.get_category_id(),
@@ -200,9 +206,9 @@ class Controller:
       )
     )
 
-    self.view.records_view.set_data(self.model)
+    self.view.income_view.set_data(self.model.categories, self.model.income)
   
-  def records_view_remove(self, record_id: int) -> None:
+  def income_view_remove(self, record_id: int) -> None:
     num_records = self.model.categories.size()
 
     if num_records == 0:
@@ -222,6 +228,93 @@ class Controller:
     if not dialog.exec():
       return
     
-    self.model.records.remove(record_id)
+    self.model.income.remove(record_id)
 
-    self.view.records_view.set_data(self.model)
+    self.view.income_view.set_data(self.model.categories, self.model.income)
+  
+  def expenses_view_add(self) -> None:
+    num_categories = self.model.categories.size()
+
+    if num_categories == 0:
+      qfw.InfoBar.error(
+          title="Error",
+          content="No categories exist.",
+          orient=QtCore.Qt.Orientation.Vertical,
+          isClosable=True,
+          position=qfw.InfoBarPosition.BOTTOM_RIGHT,
+          duration=4000,
+          parent=self.view
+        )
+      return
+    
+    dialog = View.CreateRecordDialog(self.view, self.model.categories)
+
+    if not dialog.exec():
+      return
+    
+    self.model.expenses.add(
+      Model.Record(
+        dialog.get_category_id(),
+        dialog.amount_field.value(),
+        dialog.date_field.getDate().toString("yyyy-MM-dd"),
+        dialog.description_field.text()
+      )
+    )
+
+    self.view.expenses_view.set_data(self.model.categories, self.model.expenses)
+  
+  def expenses_view_edit(self, record_id: int) -> None:
+    num_records = self.model.categories.size()
+
+    if num_records == 0:
+      qfw.InfoBar.error(
+          title="Error",
+          content="No records exist.",
+          orient=QtCore.Qt.Orientation.Vertical,
+          isClosable=True,
+          position=qfw.InfoBarPosition.BOTTOM_RIGHT,
+          duration=4000,
+          parent=self.view
+        )
+      return
+    
+    dialog = View.EditRecordDialog(self.view, record_id, self.model.categories, self.model.expenses)
+
+    if not dialog.exec():
+      return
+    
+    self.model.expenses.set(
+      record_id,
+      Model.Record(
+        dialog.get_category_id(),
+        dialog.amount_field.value(),
+        dialog.date_field.getDate().toString("yyyy-MM-dd"),
+        dialog.description_field.text()
+      )
+    )
+
+    self.view.expenses_view.set_data(self.model.categories, self.model.expenses)
+  
+  def expenses_view_remove(self, record_id: int) -> None:
+    num_records = self.model.categories.size()
+
+    if num_records == 0:
+      qfw.InfoBar.error(
+          title="Error",
+          content="No records exist.",
+          orient=QtCore.Qt.Orientation.Vertical,
+          isClosable=True,
+          position=qfw.InfoBarPosition.BOTTOM_RIGHT,
+          duration=4000,
+          parent=self.view
+        )
+      return
+    
+    dialog = View.RemoveRecordDialog(self.view)
+
+    if not dialog.exec():
+      return
+    
+    self.model.expenses.remove(record_id)
+
+    self.view.expenses_view.set_data(self.model.categories, self.model.expenses)
