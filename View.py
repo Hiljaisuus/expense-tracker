@@ -8,11 +8,27 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 import qfluentwidgets as qfw
 
+import math
+
 class UI(Enum):
   CATEGORIES      = 0
   INCOME          = 1
   EXPENSES        = 2
   STATISTICS      = 3
+
+def draw_text(painter: QtGui.QPainter, x: int, y: int, w: int, h: int, text: str, align=QtCore.Qt.AlignmentFlag.AlignCenter) -> None:
+  painter.drawText(
+    QtCore.QRectF(
+      x - w / 2,
+      y - h / 2,
+      w,
+      h
+    ),
+    painter.fontMetrics().elidedText(
+      text, QtCore.Qt.TextElideMode.ElideRight, w
+    ),
+    align
+  )
 
 class ColorIndicator(QtWidgets.QWidget):
   def __init__(self, color: QtGui.QColor, side: int = 20) -> None:
@@ -448,16 +464,522 @@ class RemoveRecordDialog(qfw.MessageBoxBase):
 
     self.viewLayout.addLayout((self.v_layout))
 
+class Sector:
+  def __init__(self, name: str, value: float, color: QtGui.QColor) -> None:
+    self.name = name
+    self.value = value
+    self.color = color
+    self.percentage: float
+    self.start: float
+    self.end: float
+
+class PieChartRenderer(QtWidgets.QWidget):
+  def __init__(self) -> None:
+    super().__init__()
+
+    self.setMouseTracking(True)
+
+    self.selected_sector = -1
+
+  def set_data(self, sectors: list[Sector]) -> None:
+    self.sectors = sectors
+
+  def get_diameter(self) -> int:
+    return int(0.9 * min(self.width(), self.height()))
+
+  def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
+    position = event.position()
+
+    delta_x = position.x() - self.width()  / 2
+    delta_y = position.y() - self.height() / 2
+
+    radius = 0.5 * self.get_diameter()
+
+    if delta_x * delta_x + delta_y * delta_y > radius * radius:
+      if self.selected_sector != -1:
+        self.selected_sector = -1
+        self.update()
+      return
+    
+    theta = 0.5 * (math.atan2(delta_x, delta_y) + math.pi) / math.pi
+
+    for index, sector in enumerate(self.sectors):
+      if sector.start < theta and theta < sector.end:
+        if index != self.selected_sector:
+          self.selected_sector = index
+          self.update()
+
+  def paintEvent(self, event: QtGui.QPaintEvent) -> None:
+    painter = QtGui.QPainter(self)
+
+    painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+    
+    pen = QtGui.QPen()
+    brush = QtGui.QBrush()
+
+    pen.setStyle(QtCore.Qt.PenStyle.SolidLine)
+    brush.setStyle(QtCore.Qt.BrushStyle.SolidPattern)
+
+    diameter = self.get_diameter()
+
+    h_padding = int(0.5 * (self.width()  - diameter))
+    v_padding = int(0.5 * (self.height() - diameter))
+
+    for index, sector in enumerate(self.sectors):
+      pen.setColor(sector.color)
+      brush.setColor(sector.color)
+
+      if index == self.selected_sector:
+        brush.setColor(sector.color.darker(110))
+
+      painter.setPen(pen)
+      painter.setBrush(brush)
+
+      painter.drawPie(
+        h_padding,
+        v_padding,
+        diameter,
+        diameter,
+        int(5760 * sector.start + 1440),
+        int(5760 * sector.percentage),
+      )
+    
+    pen.setColor(QtGui.QColor.fromRgb(255, 255, 255))
+    brush.setColor(QtGui.QColor.fromRgb(255, 255, 255))
+
+    painter.setPen(pen)
+    painter.setBrush(brush)
+
+    painter.drawEllipse(
+      QtCore.QPointF(self.width() / 2, self.height() / 2),
+      0.3 * diameter,
+      0.3 * diameter
+    )
+
+    if self.selected_sector == -1:
+      return
+
+    pen.setColor(QtGui.QColor.fromRgb(0, 0, 0))
+    painter.setPen(pen)
+
+    sector = self.sectors[self.selected_sector]
+
+    x = self.width()  // 2
+    y = self.height() // 2
+
+    painter.setFont(qfw.SubtitleLabel().getFont())
+    draw_text(painter, x, y - 25, 130, 50, sector.name)
+
+    painter.setFont(qfw.BodyLabel().getFont())
+    draw_text(painter, x, y, 130, 50, f"Total: {int(sector.value)}")
+    draw_text(painter, x, y + 20, 130, 50, f"Percentage: {int(100 * sector.percentage)}")
+
+class PieChartWidget(qfw.CardWidget):
+  def __init__(self, title: str) -> None:
+    super().__init__()
+
+    self.setMinimumHeight(300)
+    self.setMinimumWidth(300)
+
+    self.pie_chart_renderer = PieChartRenderer()
+
+    self.pie_chart_renderer.setSizePolicy(
+      QtWidgets.QSizePolicy.Policy.Preferred,
+      QtWidgets.QSizePolicy.Policy.MinimumExpanding
+    )
+
+    self.v_layout = QtWidgets.QVBoxLayout(self)
+    self.v_layout.addWidget(qfw.TitleLabel(title), alignment=QtCore.Qt.AlignmentFlag.AlignHCenter)
+    self.v_layout.addWidget(self.pie_chart_renderer)
+
+  def sizeHint(self) -> QtCore.QSize:
+    return QtCore.QSize(720, 480)
+
+  def set_data(self, sectors: list[Sector]) -> None:
+    sectors = list(filter(lambda sector: sector.value != 0, sectors))
+
+    total: float = 0
+    for sector in sectors:
+      total += sector.value
+    
+    for sector in sectors:
+      sector.percentage = sector.value / total
+    
+    running_total: float = 0
+    for sector in sectors:
+      sector.start = running_total
+      sector.end = sector.start + sector.percentage
+      running_total += sector.percentage
+    
+    self.pie_chart_renderer.set_data(sectors)
+
+class Section:
+  def __init__(self, name: str, value: float, color: QtGui.QColor) -> None:
+    self.name = name
+    self.value = value
+    self.color = color
+    self.percentage: float
+    self.start: float
+    self.end: float
+
+class Bar:
+  def __init__(self, label: str, sections: list[Section]) -> None:
+    self.label = label
+    self.sections = sections
+
+class BarChartRenderer(QtWidgets.QWidget):
+  def __init__(self) -> None:
+    super().__init__()
+
+    self.setMouseTracking(True)
+
+  def set_data(self, bars: list[Bar]) -> None:
+    self.bars = bars
+
+    self.selected_month = -1
+    self.selected_section = -1
+
+  def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
+    p = event.position()
+
+    mx = int(p.x())
+    my = int(p.y())
+
+    self.mouse_x = mx
+    self.mouse_y = my
+
+    width  = self.width()
+    height = self.height()
+
+    l_margin = 0.05 * width
+    t_margin = 0.05 * height
+    r_margin = 0.05 * width
+    b_margin = max(0.10 * height, 20)
+
+    chart_width  = width  - l_margin - r_margin
+    chart_height = height - t_margin - b_margin
+    
+    bar_width  = chart_width / 12
+    bar_h_margin = 0.25 * bar_width
+
+    for month, bar in enumerate(self.bars):
+      for index, section in enumerate(bar.sections):
+        x = l_margin + month * bar_width + bar_h_margin
+        y = height - b_margin - section.end * chart_height
+        w = bar_width - 2 * bar_h_margin
+        h = (section.end - section.start) * chart_height
+
+        if mx > x and mx < x + w and my > y and my < y + h:
+          if month != self.selected_month or index != self.selected_section:
+            self.selected_month = month
+            self.selected_section = index
+            self.update()
+          return
+    
+    if self.selected_month == -1:
+      return
+    
+    self.selected_month = -1
+    self.selected_section = -1
+
+    self.update()
+
+  def paintEvent(self, event: QtGui.QPaintEvent) -> None:
+    painter = QtGui.QPainter(self)
+
+    painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+
+    pen = QtGui.QPen()
+    brush = QtGui.QBrush()
+
+    pen.setStyle(QtCore.Qt.PenStyle.SolidLine)
+    brush.setStyle(QtCore.Qt.BrushStyle.SolidPattern)
+
+    width  = self.width()
+    height = self.height()
+
+    l_margin = 0.05 * width
+    t_margin = 0.05 * height
+    r_margin = 0.05 * width
+    b_margin = max(0.10 * height, 20)
+
+    chart_width  = width  - l_margin - r_margin
+    chart_height = height - t_margin - b_margin
+    
+    bar_width  = chart_width / 12
+    bar_h_margin = 0.25 * bar_width
+
+    for month, bar in enumerate(self.bars):
+      for section in bar.sections:
+        pen.setColor(section.color)
+        brush.setColor(section.color)
+
+        painter.setPen(pen)
+        painter.setBrush(brush)
+
+        x = l_margin + month * bar_width + bar_h_margin
+        y = height - b_margin - section.end * chart_height
+
+        painter.drawRect(QtCore.QRectF(x, y, bar_width - 2 * bar_h_margin, (section.end - section.start) * chart_height))
+    
+    pen.setColor(QtGui.QColor.fromRgb(0, 0, 0))
+    
+    painter.setPen(pen)
+
+    painter.setFont(qfw.BodyLabel().getFont())
+
+    for month, bar in enumerate(self.bars):
+      x = int(l_margin + (month + 0.5) * bar_width)
+      y = int(height - 0.5 * b_margin)
+      w = 30
+      h = int(b_margin)
+
+      draw_text(painter, x, y, w, h, bar.label)
+    
+    if self.selected_month == -1:
+      return
+    
+    pen.setColor(QtGui.QColor.fromRgb(251, 251, 251))
+    brush.setColor(QtGui.QColor.fromRgb(251, 251, 251))
+
+    painter.setPen(pen)
+
+    painter.setBrush(brush)
+
+    info_box_width  = int(max(110, 2 * bar_width))
+    info_box_height = 76
+
+    section = self.bars[self.selected_month].sections[self.selected_section]
+
+    x = l_margin + (self.selected_month + 1) * bar_width - bar_h_margin + 2
+    y = height - b_margin - section.end * chart_height
+
+    if x > width - r_margin - info_box_width:
+      x = l_margin + self.selected_month * bar_width + bar_h_margin - info_box_width - 2
+    y = min(y, height - b_margin - info_box_height)
+
+    x = int(x)
+    y = int(y)
+
+    painter.drawRect(x, y, info_box_width, info_box_height + 1)
+
+    pen.setColor(QtGui.QColor(0, 0, 0))
+
+    painter.setPen(pen)
+
+    text_h_offset = info_box_width // 2 + 10
+
+    painter.setFont(qfw.SubtitleLabel().getFont())
+    draw_text(painter, x + text_h_offset, y + 28, info_box_width, 50, section.name, align=QtCore.Qt.AlignmentFlag.AlignLeft)
+
+    painter.setFont(qfw.BodyLabel().getFont())
+    draw_text(painter, x + text_h_offset, y + 53, info_box_width, 50, f"Total: {int(section.value)}", align=QtCore.Qt.AlignmentFlag.AlignLeft)
+    draw_text(painter, x + text_h_offset, y + 73, info_box_width, 50, f"Percentage: {int(100 * section.percentage)}", align=QtCore.Qt.AlignmentFlag.AlignLeft)
+
+class BarChartWidget(qfw.CardWidget):
+  def __init__(self, title: str) -> None:
+    super().__init__()
+
+    self.setMinimumHeight(200)
+    self.setMinimumWidth(350)
+
+    self.bar_chart_renderer = BarChartRenderer()
+
+    self.bar_chart_renderer.setSizePolicy(
+      QtWidgets.QSizePolicy.Policy.Preferred,
+      QtWidgets.QSizePolicy.Policy.MinimumExpanding
+    )
+
+    self.v_layout = QtWidgets.QVBoxLayout(self)
+    self.v_layout.addWidget(qfw.TitleLabel(title), alignment=QtCore.Qt.AlignmentFlag.AlignHCenter)
+    self.v_layout.addWidget(self.bar_chart_renderer)
+  
+  def sizeHint(self) -> QtCore.QSize:
+    return QtCore.QSize(720, 480)
+
+  def set_data(self, bars: list[Bar]) -> None:
+    maximum: float = 0
+    for bar in bars:
+      total: float = 0
+      for section in bar.sections:
+        total += section.value
+      maximum = max(maximum, total)
+
+    for bar in bars:
+      for section in bar.sections:
+        section.percentage = section.value / maximum
+      
+      running_total: float = 0
+      for section in bar.sections:
+        section.start = running_total
+        section.end = section.start + section.percentage
+        running_total += section.percentage
+
+    self.bar_chart_renderer.set_data(bars)
+
 class StatisticsView(QtWidgets.QWidget):
   def __init__(self) -> None:
     super().__init__()
 
-    self.v_layout = QtWidgets.QVBoxLayout(self)
-    self.v_layout.addWidget(qfw.DisplayLabel("Statistics"))
-    self.v_layout.addStretch()
-  
+    self.income_pie_chart = PieChartWidget("Income by Category")
+    self.expense_pie_chart = PieChartWidget("Expenses by Category")
+
+    self.income_bar_chart = BarChartWidget("Income Over Time")
+    self.expense_bar_chart = BarChartWidget("Expenses Over Time")
+    self.net_change_bar_chart = BarChartWidget("Net Change Over Time")
+
+    self.scroll_area = qfw.SingleDirectionScrollArea(orient=QtCore.Qt.Orientation.Vertical)
+    self.scroll_area.setWidgetResizable(True)
+
+    self.scroll_area_widget = QtWidgets.QWidget()
+    self.scroll_area_widget.setSizePolicy(
+      QtWidgets.QSizePolicy.Policy.Preferred,
+      QtWidgets.QSizePolicy.Policy.MinimumExpanding
+    )
+    self.scroll_area.setHorizontalScrollBarPolicy(
+      QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    )
+
+    self.grid_layout = QtWidgets.QGridLayout(self.scroll_area_widget)
+    self.grid_layout.addWidget(self.income_pie_chart, 0, 0)
+    self.grid_layout.addWidget(self.expense_pie_chart, 0, 1)
+    self.grid_layout.addWidget(self.income_bar_chart, 1, 0)
+    self.grid_layout.addWidget(self.expense_bar_chart, 1, 1)
+    self.grid_layout.addWidget(self.net_change_bar_chart, 2, 0, 1, 2)
+
+    self.scroll_area.setWidget(self.scroll_area_widget)
+
+    self.v_layout_2 = QtWidgets.QVBoxLayout(self)
+    self.v_layout_2.addWidget(qfw.DisplayLabel("Statistics"))
+    self.v_layout_2.addWidget(self.scroll_area)
+
+  def convert_records_to_sectors(self, categories: Container[Category], records: list[Record]) -> list[Sector]:
+    num_category_ids = len(categories.id_to_index)
+
+    category_sums: list[float] = [0] * num_category_ids
+
+    for record in records:
+      category_sums[record.category] += record.amount
+
+    sectors: list[Sector] = []
+
+    for id in range(num_category_ids):
+      if not categories.has(id):
+        continue
+      
+      category = categories.get(id)
+      
+      sectors.append(Sector(
+        category.name,
+        category_sums[id],
+        category.color
+      ))
+    
+    # sort sectors from largest to smallest
+    sectors.sort(key=lambda s: s.value, reverse=True)
+
+    return sectors
+
+  def convert_records_to_bars(self, categories: Container[Category], records: list[Record]) -> list[Bar]:
+    num_category_ids = len(categories.id_to_index)
+
+    sums: list[list[float]] = [[0] * num_category_ids for i in range(12)]
+
+    for record in records:
+      month = QtCore.QDate.fromString(record.date, "yyyy-MM-dd").month() - 1
+      sums[month][record.category] += record.amount
+    
+    category_sums: list[float] = [0] * num_category_ids
+
+    for month in range(12):
+      for category in range(num_category_ids):
+        category_sums[category] += sums[month][category]
+    
+    category_ids = list(range(num_category_ids))
+
+    category_ids.sort(key=lambda id: category_sums[id], reverse=True)
+
+    month_names: list[str] = [
+      "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"
+    ]
+
+    bars: list[Bar] = []
+
+    for month in range(12):
+      sections: list[Section] = []
+
+      for id in category_ids:
+        if not categories.has(id) or sums[month][id] == 0:
+          continue
+
+        category = categories.get(id)
+        
+        sections.append(Section(
+          category.name,
+          sums[month][id],
+          category.color
+        ))
+    
+      bars.append(Bar(month_names[month], sections))
+    
+    return bars
+
+  def calculate_net_change(self, income_bars: list[Bar], expense_bars: list[Bar]) -> list[Bar]:
+    monthly_net_change: list[float] = [0] * 12
+    
+    for month in range(12):
+      for section in income_bars[month].sections:
+        monthly_net_change[month] += section.value
+      
+      for section in expense_bars[month].sections:
+        monthly_net_change[month] -= section.value
+    
+    absolute_net_change: float = 0
+    
+    for v in monthly_net_change:
+      absolute_net_change += abs(v)
+
+    minimum = min(monthly_net_change)
+    maximum = max(monthly_net_change)
+
+    bars: list[Bar] = []
+
+    months: list[str] = [
+      "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"
+    ]
+
+    for i in range(12):
+      section = Section("Total", monthly_net_change[i], QtGui.QColor(0, 0, 0))
+
+      section.percentage = abs(section.value) / absolute_net_change
+
+      if minimum >= 0:
+        section.start = 0
+        section.end = section.value / maximum
+
+      else:
+        if section.value >= 0:
+          section.start = minimum / (minimum - maximum)
+          section.end = (section.value - minimum) / (maximum - minimum)
+        else:
+          section.start = (section.value - minimum) / (maximum - minimum)
+          section.end = minimum / (minimum - maximum)
+      
+      bars.append(Bar(months[i], [section]))
+
+    return bars
+
   def set_data(self, model: Model) -> None:
-    pass
+    self.income_pie_chart.set_data(self.convert_records_to_sectors(model.categories, model.income.data))
+    self.expense_pie_chart.set_data(self.convert_records_to_sectors(model.categories, model.expenses.data))
+
+    income_bars = self.convert_records_to_bars(model.categories, model.income.data)
+    expense_bars = self.convert_records_to_bars(model.categories, model.expenses.data)
+
+    self.income_bar_chart.set_data(income_bars)
+    self.expense_bar_chart.set_data(expense_bars)
+
+    self.net_change_bar_chart.bar_chart_renderer.set_data(self.calculate_net_change(income_bars, expense_bars))
 
 class View(qfw.FluentWindow):
   def __init__(self) -> None:
